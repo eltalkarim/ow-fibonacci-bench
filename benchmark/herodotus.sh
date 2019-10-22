@@ -4,19 +4,25 @@ set -e
 CONFIG_DIR=$1
 
 
-while getopts c:r: option
+while getopts c:g: option
 do
 case "${option}"
 in
 c) CONFIG_DIR=${OPTARG};;
+g) GIT_REV=${OPTARG};;
 esac
 done
 
 
 if [ "X$CONFIG_DIR" == "X" ]
 then
-  echo no configuration file passed in args set to current dir
+  echo "no configuration file passed in args set to current directory"
   CONFIG_DIR=./
+fi
+if [ "X$GIT_REV" == "X" ]
+then
+  echo "no git revision passed in args set to HEAD"
+  GIT_REV=HEAD
 fi
 cd ${CONFIG_DIR}
 
@@ -53,6 +59,7 @@ API_URL=$(wsk -i action get ${sutActionName} --url | awk 'NR==2')
 #fetch git rev from source
 current_dir=$(pwd)
 cd ${src}
+git checkout ${GIT_REV}
 GIT_REV=$(git rev-parse HEAD)
 cd ${current_dir}
 rm -f ${reportPath}/results-${GIT_REV}.csv || true
@@ -114,7 +121,7 @@ chart.render();
 </head>
 <body>
 <div id="chartContainer" style="height: 370px; width: 50%;"></div>
-<h2>Average Latency: '$AVERAGE_LATENCY'</h1>
+<h2>Average Latency: '$AVERAGE_LATENCY'</h2>
 <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
 </body>
 </html>' > ${reportPath}/report-${GIT_REV}.html
