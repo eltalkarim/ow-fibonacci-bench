@@ -66,8 +66,9 @@ rm -f ${reportPath}/results-${GIT_REV}.csv || true
 rm -f ${reportPath}/report-${GIT_REV}.html || true
 
 #run the workload generator
+echo running bechmarks against ${API_URL}
 ${jmeterDir}/jmeter -n -t ${CONFIG_DIR}${jmeterConfigDir} \
--l ${reportPath}/results-${GIT_REV}.csv \
+-l ${reportPath}/${GIT_REV}.csv \
 -Jurl=${API_URL} \
 -Jstatus_code_regex="${STATUS_CODE_REGEX}" \
 -Jboot_time_regex="${BOOT_TIME_REGEX}" \
@@ -78,18 +79,28 @@ ${jmeterDir}/jmeter -n -t ${CONFIG_DIR}${jmeterConfigDir} \
 -JrampUpDuration=${jmeterRampUpDuration} \
 -Jduration=${jmeterDuration}
 
+#sort by timestamp
+sort -t, -k1 ${reportPath}/${GIT_REV}.csv > ${reportPath}/results-${GIT_REV}.csv
+
+
 LATENCY_DATA=( $(cut -d ',' -f10 ${reportPath}/results-${GIT_REV}.csv ) )
 TIMESTAMP_DATA=( $(cut -d ',' -f1 ${reportPath}/results-${GIT_REV}.csv ) )
-echo "${LATENCY_DATA[@]}"
 for index in ${!LATENCY_DATA[@]}; do
-    LATENCY_DATA_STRING+="{y: ${LATENCY_DATA[index]} },"
+    X_INDEX="$((${TIMESTAMP_DATA[index]}-${TIMESTAMP_DATA[0]}))"
+    LATENCY_DATA_STRING+="{y: ${LATENCY_DATA[index]}},"
 done
 
-echo $LATENCY_DATA_STRING
-
 AVERAGE_LATENCY=$(awk -F',' '{sum+=$10; ++n} END { print sum/n }' < ${reportPath}/results-${GIT_REV}.csv)
+MAX_LATENCY=$(awk 'BEGIN { max=0 } $10 > max { max=$10} END { print max }' FS="," < ${reportPath}/results-${GIT_REV}.csv)
+MIN_LATENCY=$(awk 'BEGIN { min='${sutTimeout}' } $10 < min { min=$10} END { print min }' FS="," < ${reportPath}/results-${GIT_REV}.csv)
+echo MAX is ${MAX_LATENCY}
+echo MIN is ${MIN_LATENCY}
 
+Q1_LATENCY=$(sort -t, -k10 ${reportPath}/${GIT_REV}.csv | awk -F',' '{all[NR] = $10} END{print all[int(NR*0.25 -0.5)]}')
+Q2_LATENCY=$(sort -t, -k10 ${reportPath}/${GIT_REV}.csv | awk -F',' '{all[NR] = $10} END{print all[int(NR*0.50 -0.5)]}')
+Q3_LATENCY=$(sort -t, -k10 ${reportPath}/${GIT_REV}.csv | awk -F',' '{all[NR] = $10} END{print all[int(NR*0.75 -0.5)]}')
 
+rm -f ${reportPath}/${GIT_REV}.csv || true
 ##### Main
 
 echo '<!DOCTYPE HTML>
@@ -105,7 +116,8 @@ var chart = new CanvasJS.Chart("chartContainer", {
 		text: "Performance Benchmarks of version '$GIT_REV'"
 	},
 	axisY:{
-		includeZero: false
+	    title: "Latency in ms",
+		includeZero: true
 	},
 	data: [{
 		type: "line",
@@ -116,12 +128,31 @@ var chart = new CanvasJS.Chart("chartContainer", {
 });
 chart.render();
 
+var chart = new CanvasJS.Chart("chartContainer2", {
+	animationEnabled: true,
+	axisY: {
+		title: "Latency in ms",
+		includeZero: true
+	},
+	data: [{
+		type: "boxAndWhisker",
+		yValueFormatString: "#000 ms",
+		dataPoints: [
+			{ x: 0,  y: ['${MIN_LATENCY}', '${Q1_LATENCY}', '${Q3_LATENCY}', '${MAX_LATENCY}', '${Q2_LATENCY}'] },
+		]
+	}]
+});
+chart.render();
+
 }
 </script>
 </head>
 <body>
 <div id="chartContainer" style="height: 370px; width: 50%;"></div>
-<h2>Average Latency: '$AVERAGE_LATENCY'</h2>
+<div id="chartContainer2" style="height: 370px; width: 50%"></div>
+<p>Average Latency: '$AVERAGE_LATENCY'</p>
+<p>Max Latency: '$MAX_LATENCY'</p>
+<p>Min Latency: '$MIN_LATENCY'</p>
 <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
 </body>
 </html>' > ${reportPath}/report-${GIT_REV}.html
