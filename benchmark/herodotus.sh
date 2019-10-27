@@ -177,7 +177,8 @@ var chart = new CanvasJS.Chart("chartContainer2", {
 	},
     axisX: {
 		title: "Version from Git",
-		valueFormatString: "#00"
+		valueFormatString: "#00",
+		interval: 1
 	},
 	data: [{
 		type: "boxAndWhisker",
