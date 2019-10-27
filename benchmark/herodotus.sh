@@ -157,4 +157,9 @@ chart.render();
 </body>
 </html>' > ${reportPath}/report-${GIT_REV}.html
 
+
+OVERRIDE=$(awk -F, '$1 !~ '${GIT_REV}'' results/aggregated-results.csv)
+echo $OVERRIDE
+echo -e "$OVERRIDE \n${GIT_REV},${MIN_LATENCY},${AVERAGE_LATENCY},${Q1_LATENCY},${Q2_LATENCY},${Q3_LATENCY},${MAX_LATENCY}" > ${reportPath}/aggregated-results.csv
+
 echo benchmarks completed!
